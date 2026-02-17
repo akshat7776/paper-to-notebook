@@ -278,9 +278,15 @@ def call_gemini(
     )
 
     if on_thinking:
+        thinking_config = types.GenerateContentConfig(
+            system_instruction=system_prompt,
+            max_output_tokens=max_tokens,
+            temperature=0.7,
+            thinking_config=types.ThinkingConfig(include_thoughts=True),
+        )
         full_text = ""
         for chunk in client.models.generate_content_stream(
-            model=model, contents=user_content, config=config
+            model=model, contents=user_content, config=thinking_config
         ):
             try:
                 if chunk.candidates and chunk.candidates[0].content and chunk.candidates[0].content.parts:
@@ -458,6 +464,9 @@ def run_pipeline(
         "algorithms": num_algos,
         "insight": analysis.get("key_insight", ""),
         "problem": analysis.get("problem_statement", ""),
+        "abstract_summary": analysis.get("abstract_summary", ""),
+        "model_type": analysis.get("model_architecture", {}).get("type", ""),
+        "authors": analysis.get("authors", ""),
     })
 
     # Step 2: Design Plan

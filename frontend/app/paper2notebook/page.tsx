@@ -1,7 +1,8 @@
 'use client'
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import ReactMarkdown from 'react-markdown'
 import {
   Upload,
   FileText,
@@ -14,7 +15,8 @@ import {
   Brain,
   Code2,
   Zap,
-  X
+  X,
+  Maximize2
 } from 'lucide-react'
 import { twMerge } from 'tailwind-merge'
 import clsx from 'clsx'
@@ -63,7 +65,81 @@ export default function Home() {
   const [showDone, setShowDone] = useState(false)
   const [showFullscreenThinking, setShowFullscreenThinking] = useState(false)
 
+  // Paper info for engaging wait experience
+
+  // arXiv instant metadata
+  const [arxivMeta, setArxivMeta] = useState<{ title: string; authors: string; abstract: string; categories: string[]; published: string; venue: string } | null>(null)
+  const [showArxivExpanded, setShowArxivExpanded] = useState(false)
+  const [panelExpanded, setPanelExpanded] = useState(false)
+
+  const CATEGORY_LABELS: Record<string, string> = {
+    'cs.LG': 'Machine Learning', 'cs.CV': 'Computer Vision', 'cs.CL': 'NLP',
+    'cs.AI': 'AI', 'cs.NE': 'Neural Networks', 'cs.RO': 'Robotics',
+    'stat.ML': 'Statistics ML', 'cs.IR': 'Information Retrieval',
+    'cs.CR': 'Cryptography', 'cs.DC': 'Distributed Computing',
+    'math.OC': 'Optimization', 'eess.IV': 'Image Processing',
+  }
+
+  const fetchArxivMeta = async (url: string) => {
+    const match = url.match(/arxiv\.org\/(?:abs|pdf)\/([0-9]+\.[0-9]+(?:v\d+)?)/)
+    if (!match) return
+    try {
+      const res = await fetch(`/api/arxiv?id=${match[1]}`)
+      const text = await res.text()
+      const xml = new DOMParser().parseFromString(text, 'text/xml')
+      const entry = xml.querySelector('entry')
+      if (!entry) return
+      const title = entry.querySelector('title')?.textContent?.replace(/\s+/g, ' ').trim() || ''
+      const authors = Array.from(entry.querySelectorAll('author name')).map(a => a.textContent).join(', ')
+      const abstract = entry.querySelector('summary')?.textContent?.replace(/\s+/g, ' ').trim() || ''
+      const categories = Array.from(entry.querySelectorAll('category')).map(c => c.getAttribute('term') || '').filter(Boolean)
+      const published = entry.querySelector('published')?.textContent?.slice(0, 10) || ''
+      const journalRef = entry.querySelector('journal_ref')?.textContent?.trim() || ''
+      const comment = entry.querySelector('comment')?.textContent?.trim() || ''
+      const venue = journalRef || (comment.match(/(?:ICLR|NeurIPS|ICML|CVPR|ICCV|ECCV|ACL|EMNLP|AAAI|IJCAI|NAACL|INTERSPEECH|ICASSP)[^,.]*/i)?.[0] || '')
+      setArxivMeta({ title, authors, abstract, categories, published, venue })
+    } catch {}
+  }
+
   const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'
+  const thinkingScrollRef = useRef<HTMLDivElement>(null)
+  const userScrolledUpRef = useRef(false)
+
+  // Typewriter effect
+  const [displayedThinking, setDisplayedThinking] = useState('')
+  const pendingCharsRef = useRef('')
+  const typeTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  useEffect(() => {
+    const newChars = thinking.slice(displayedThinking.length + pendingCharsRef.current.length)
+    if (newChars) pendingCharsRef.current += newChars
+
+    if (!typeTimerRef.current) {
+      typeTimerRef.current = setInterval(() => {
+        if (pendingCharsRef.current.length === 0) {
+          clearInterval(typeTimerRef.current!)
+          typeTimerRef.current = null
+          return
+        }
+        const batch = pendingCharsRef.current.slice(0, 4)
+        pendingCharsRef.current = pendingCharsRef.current.slice(4)
+        setDisplayedThinking(prev => {
+          const next = prev + batch
+          // Auto-scroll only if user hasn't scrolled up
+          if (!userScrolledUpRef.current && thinkingScrollRef.current) {
+            thinkingScrollRef.current.scrollTop = thinkingScrollRef.current.scrollHeight
+          }
+          return next
+        })
+      }, 18)
+    }
+  }, [thinking])
+
+  const handleThinkingScroll = useCallback(() => {
+    if (!thinkingScrollRef.current) return
+    const { scrollTop, scrollHeight, clientHeight } = thinkingScrollRef.current
+    userScrolledUpRef.current = scrollHeight - scrollTop - clientHeight > 60
+  }, [])
 
   // Load API key from localStorage and check for pending file/URL
   useEffect(() => {
@@ -145,7 +221,14 @@ export default function Home() {
     setShowDone(false)
     setActivities([])
     setThinking('')
+    setDisplayedThinking('')
+    setArxivMeta(null)
+    pendingCharsRef.current = ''
+    userScrolledUpRef.current = false
+    if (typeTimerRef.current) { clearInterval(typeTimerRef.current); typeTimerRef.current = null }
     setCurrentStep(0)
+
+    if (arxivUrl.trim()) fetchArxivMeta(arxivUrl.trim())
     setSteps([
       { name: 'Analyze paper', detail: '' },
       { name: 'Design implementation', detail: '' },
@@ -238,7 +321,16 @@ export default function Home() {
   const handleProgress = (data: any) => {
     const { step, detail, extra } = data
 
-    setCurrentStep(step)
+    // Reset thinking stream when a new stage begins
+    setCurrentStep(prev => {
+      if (step > prev) {
+        setThinking('')
+        setDisplayedThinking('')
+        pendingCharsRef.current = ''
+        userScrolledUpRef.current = false
+      }
+      return step
+    })
 
     // Update step details
     setSteps(prev => {
@@ -489,10 +581,22 @@ export default function Home() {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.4 }}
-            className="relative"
+            className={panelExpanded ? "fixed top-4 bottom-4 left-[24%] w-[52%] z-50" : "relative"}
           >
-            <div className="rounded-2xl p-[2px] bg-gradient-to-r from-[#ffd78a] via-[#8ad4ff] to-[#ffa8ff] shadow-2xl">
-              <div className="h-full min-h-[650px] rounded-[14px] bg-[#0a0a0a] backdrop-blur-xl overflow-hidden relative">
+            {panelExpanded && (
+              <div className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm" onClick={() => setPanelExpanded(false)} />
+            )}
+            <div className={`rounded-2xl p-[2px] bg-gradient-to-r from-[#ffd78a] via-[#8ad4ff] to-[#ffa8ff] shadow-2xl relative z-50 ${panelExpanded ? "h-full flex flex-col" : ""}`}>
+              <div className={`rounded-[14px] bg-[#0a0a0a] backdrop-blur-xl overflow-hidden relative ${panelExpanded ? "flex-1 flex flex-col" : "h-full min-h-[650px]"}`}>
+
+                {/* Expand / Collapse button */}
+                <button
+                  onClick={() => setPanelExpanded(p => !p)}
+                  className="absolute top-3 right-3 z-10 text-white/70 hover:text-white transition-colors bg-white/10 hover:bg-white/20 rounded-lg p-1.5"
+                  title={panelExpanded ? "Collapse" : "Expand"}
+                >
+                  <Maximize2 className="w-4 h-4" />
+                </button>
 
                 <AnimatePresence mode="wait">
                   {/* Empty State */}
@@ -521,15 +625,13 @@ export default function Home() {
                       className="absolute inset-0 p-8 overflow-y-auto"
                     >
                       <div className="space-y-8">
-                        {/* Spinner */}
+                        {/* GIF animation */}
                         <div className="flex justify-center">
-                          <div className="relative w-20 h-20">
-                            <div className="absolute inset-0 bg-gradient-to-r from-[#ffd78a] via-[#8ad4ff] to-[#ffa8ff] blur-xl opacity-30 animate-pulse rounded-full" />
-                            <div className="absolute inset-0 border-t-2 border-[#ffd78a] rounded-full animate-spin" style={{ animationDuration: '1.5s' }} />
-                            <div className="absolute inset-2 border-r-2 border-[#8ad4ff] rounded-full animate-spin" style={{ animationDuration: '2s', animationDirection: 'reverse' }} />
-                            <div className="absolute inset-4 border-b-2 border-[#ffa8ff] rounded-full animate-spin" style={{ animationDuration: '2.5s' }} />
-                            <Loader2 className="w-8 h-8 text-[#8ad4ff] animate-spin absolute inset-0 m-auto" />
-                          </div>
+                          <img
+                            src="/Scanning Documents.gif"
+                            alt="Processing..."
+                            style={{ width: 120, height: 120, objectFit: 'contain' }}
+                          />
                         </div>
 
                         {/* Progress Steps */}
@@ -578,26 +680,149 @@ export default function Home() {
                           })}
                         </div>
 
-                        {/* Thinking Box */}
-                        {thinking && (
-                          <div className="bg-white/5 rounded-lg p-4 border border-white/10">
-                            <div className="flex items-center justify-between mb-2">
-                              <h4 className="text-sm font-semibold text-white/80 flex items-center gap-2">
-                                <Brain className="w-4 h-4 text-[#8ad4ff]" />
-                                Model Thinking
-                              </h4>
+                        {/* Stage 1 only: Live Gemini reading display (moved below activity for stage 2) */}
+                        {currentStep === 1 && thinking && (
+                          <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="bg-white/5 rounded-xl border border-white/10 overflow-hidden"
+                          >
+                            <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10 bg-white/[0.03]">
+                              <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#8ad4ff] opacity-75" />
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-[#8ad4ff]" />
+                              </span>
+                              <span className="text-xs font-semibold text-white/80">
+                                {currentStep === 1 ? "Gemini is reading your paper..." : "Gemini is designing the implementation..."}
+                              </span>
                               <button
                                 onClick={() => setShowFullscreenThinking(true)}
-                                className="text-xs text-[#8ad4ff] hover:text-[#8ad4ff]"
+                                className="ml-auto text-xs text-white/40 hover:text-white/70 transition-colors"
                               >
                                 Expand
                               </button>
                             </div>
-                            <div className="text-xs font-mono text-white/60 max-h-32 overflow-y-auto">
-                              {thinking.slice(-500)}
+                            <div
+                              ref={thinkingScrollRef}
+                              onScroll={handleThinkingScroll}
+                              className="text-xs text-white/60 leading-relaxed p-4 max-h-48 overflow-y-auto"
+                            >
+                              <ReactMarkdown
+                                components={{
+                                  p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                                  strong: ({ children }) => <strong className="text-white/90 font-semibold">{children}</strong>,
+                                  em: ({ children }) => <em className="text-[#ffa8ff]/80">{children}</em>,
+                                  h1: ({ children }) => <h1 className="text-sm font-bold text-white/90 mb-1">{children}</h1>,
+                                  h2: ({ children }) => <h2 className="text-xs font-bold text-white/80 mb-1">{children}</h2>,
+                                  h3: ({ children }) => <h3 className="text-xs font-semibold text-white/70 mb-1">{children}</h3>,
+                                  ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-0.5">{children}</ul>,
+                                  ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-0.5">{children}</ol>,
+                                  li: ({ children }) => <li className="text-white/60">{children}</li>,
+                                  code: ({ children }) => <code className="font-mono bg-white/10 px-1 rounded text-[#8ad4ff]">{children}</code>,
+                                }}
+                              >
+                                {displayedThinking}
+                              </ReactMarkdown>
+                              <span className="inline-block w-1.5 h-3 bg-[#8ad4ff]/70 animate-pulse ml-0.5 align-middle" />
                             </div>
-                          </div>
+                          </motion.div>
                         )}
+
+                        {/* Stage 1 & 2: placeholder before thinking starts */}
+                        {(currentStep === 1 || currentStep === 2) && !thinking && !activities.length && (
+                          <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="bg-white/5 rounded-xl border border-white/10 overflow-hidden"
+                          >
+                            <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10 bg-white/[0.03]">
+                              <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#8ad4ff] opacity-75" />
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-[#8ad4ff]" />
+                              </span>
+                              <span className="text-xs font-semibold text-white/80">
+                                {currentStep === 1 ? "Gemini is reading your paper..." : "Gemini is designing the implementation..."}
+                              </span>
+                            </div>
+                            <div className="px-4 py-6 flex items-center gap-3">
+                              <div className="flex gap-1">
+                                {[0, 1, 2].map(i => (
+                                  <motion.div
+                                    key={i}
+                                    className="w-1.5 h-1.5 rounded-full bg-white/30"
+                                    animate={{ opacity: [0.3, 1, 0.3] }}
+                                    transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.2 }}
+                                  />
+                                ))}
+                              </div>
+                              <span className="text-xs text-white/40">Uploading and parsing PDF...</span>
+                            </div>
+                          </motion.div>
+                        )}
+
+                        {/* arXiv metadata card — appears below thinking once thinking starts */}
+                        {arxivMeta && (
+                          <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="bg-white/5 rounded-xl border border-white/10 overflow-hidden"
+                          >
+                            <div className="flex items-start justify-between px-4 pt-3 pb-0">
+                              <div className="flex flex-wrap gap-1.5 flex-1">
+                                {arxivMeta.venue && (
+                                  <span className="text-xs bg-[#ffd78a]/15 text-[#ffd78a] px-2 py-0.5 rounded-full font-medium">
+                                    {arxivMeta.venue}
+                                  </span>
+                                )}
+                                {arxivMeta.categories.slice(0, 3).map(cat => (
+                                  <span key={cat} className="text-xs bg-[#8ad4ff]/15 text-[#8ad4ff] px-2 py-0.5 rounded-full font-medium">
+                                    {CATEGORY_LABELS[cat] || cat}
+                                  </span>
+                                ))}
+                                {arxivMeta.published && (
+                                  <span className="text-xs bg-white/10 text-white/40 px-2 py-0.5 rounded-full">
+                                    {arxivMeta.published}
+                                  </span>
+                                )}
+                              </div>
+                              <button
+                                onClick={() => setShowArxivExpanded(true)}
+                                className="ml-2 shrink-0 text-white/30 hover:text-white/70 transition-colors p-1"
+                                title="Expand"
+                              >
+                                <Maximize2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                            <div className="px-4 py-3 space-y-1.5">
+                              <h3 className="text-sm font-semibold text-white leading-snug">{arxivMeta.title}</h3>
+                              <p className="text-xs text-white/40">{arxivMeta.authors}</p>
+                              <p className="text-xs text-white/60 leading-relaxed line-clamp-3">{arxivMeta.abstract}</p>
+                            </div>
+                          </motion.div>
+                        )}
+
+                        {/* Early Download - available once draft is ready (stages 1-3 done) */}
+                        {draftJobId && currentStep === 4 && (
+                          <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="bg-[#ffd78a]/10 border border-[#ffd78a]/30 rounded-lg p-4"
+                          >
+                            <p className="text-xs text-[#ffd78a] font-semibold mb-2">Draft ready - download now while validation runs.</p>
+                            <a
+                              href={`${API_URL}/api/download/${draftJobId}`}
+                              download
+                              className="inline-flex items-center gap-2 bg-[#ffd78a]/20 hover:bg-[#ffd78a]/30 text-[#ffd78a] px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                            >
+                              <Download className="w-4 h-4" />
+                              Download Draft Notebook
+                            </a>
+                          </motion.div>
+                        )}
+
+
+
+                        {/* Stage 1 thinking (no activities yet) already rendered above */}
 
                         {/* Activity Feed */}
                         {activities.length > 0 && (
@@ -614,7 +839,27 @@ export default function Home() {
                                 </div>
                                 <h4 className="text-sm font-semibold text-white mb-2">{activity.title}</h4>
                                 {activity.type === 'analysis' && (
-                                  <p className="text-xs text-white/60">{activity.content.problem}</p>
+                                  <div className="space-y-2">
+                                    {activity.content.authors && (
+                                      <p className="text-xs text-white/40">{activity.content.authors}</p>
+                                    )}
+                                    {(activity.content.abstract_summary || activity.content.problem) && (
+                                      <p className="text-xs text-white/60 leading-relaxed">
+                                        {activity.content.abstract_summary || activity.content.problem}
+                                      </p>
+                                    )}
+                                    {activity.content.insight && (
+                                      <p className="text-xs text-[#8ad4ff]/70 italic">"{activity.content.insight}"</p>
+                                    )}
+                                    <div className="flex flex-wrap gap-1.5 pt-1">
+                                      {activity.content.model_type && (
+                                        <span className="text-xs bg-[#8ad4ff]/10 text-[#8ad4ff] px-2 py-0.5 rounded-full">{activity.content.model_type}</span>
+                                      )}
+                                      {activity.content.algorithms > 0 && (
+                                        <span className="text-xs bg-white/10 text-white/50 px-2 py-0.5 rounded-full">{activity.content.algorithms} algorithm{activity.content.algorithms > 1 ? 's' : ''}</span>
+                                      )}
+                                    </div>
+                                  </div>
                                 )}
                                 {activity.type === 'design' && (
                                   <div className="flex gap-2 flex-wrap">
@@ -625,6 +870,52 @@ export default function Home() {
                               </motion.div>
                             ))}
                           </div>
+                        )}
+
+                        {/* Stage 2: Gemini designing — appears below activity cards */}
+                        {currentStep === 2 && thinking && (
+                          <motion.div
+                            initial={{ opacity: 0, y: 10 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="bg-white/5 rounded-xl border border-white/10 overflow-hidden"
+                          >
+                            <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10 bg-white/[0.03]">
+                              <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#8ad4ff] opacity-75" />
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-[#8ad4ff]" />
+                              </span>
+                              <span className="text-xs font-semibold text-white/80">Gemini is designing the implementation...</span>
+                              <button
+                                onClick={() => setShowFullscreenThinking(true)}
+                                className="ml-auto text-xs text-white/40 hover:text-white/70 transition-colors"
+                              >
+                                Expand
+                              </button>
+                            </div>
+                            <div
+                              ref={thinkingScrollRef}
+                              onScroll={handleThinkingScroll}
+                              className="text-xs text-white/60 leading-relaxed p-4 max-h-48 overflow-y-auto"
+                            >
+                              <ReactMarkdown
+                                components={{
+                                  p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                                  strong: ({ children }) => <strong className="text-white/90 font-semibold">{children}</strong>,
+                                  em: ({ children }) => <em className="text-[#ffa8ff]/80">{children}</em>,
+                                  h1: ({ children }) => <h1 className="text-sm font-bold text-white/90 mb-1">{children}</h1>,
+                                  h2: ({ children }) => <h2 className="text-xs font-bold text-white/80 mb-1">{children}</h2>,
+                                  h3: ({ children }) => <h3 className="text-xs font-semibold text-white/70 mb-1">{children}</h3>,
+                                  ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-0.5">{children}</ul>,
+                                  ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-0.5">{children}</ol>,
+                                  li: ({ children }) => <li className="text-white/60">{children}</li>,
+                                  code: ({ children }) => <code className="font-mono bg-white/10 px-1 rounded text-[#8ad4ff]">{children}</code>,
+                                }}
+                              >
+                                {displayedThinking}
+                              </ReactMarkdown>
+                              <span className="inline-block w-1.5 h-3 bg-[#8ad4ff]/70 animate-pulse ml-0.5 align-middle" />
+                            </div>
+                          </motion.div>
                         )}
                       </div>
                     </motion.div>
@@ -722,6 +1013,50 @@ export default function Home() {
 
       {/* Fullscreen Thinking Modal */}
       <AnimatePresence>
+        {/* arXiv expanded modal */}
+        {showArxivExpanded && arxivMeta && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-6"
+            onClick={() => setShowArxivExpanded(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className="bg-[#0a0a0a] border border-white/10 rounded-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto p-6 space-y-4"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="flex flex-wrap gap-1.5">
+                  {arxivMeta.venue && (
+                    <span className="text-xs bg-[#ffd78a]/15 text-[#ffd78a] px-2 py-0.5 rounded-full font-medium">
+                      {arxivMeta.venue}
+                    </span>
+                  )}
+                  {arxivMeta.categories.slice(0, 4).map(cat => (
+                    <span key={cat} className="text-xs bg-[#8ad4ff]/15 text-[#8ad4ff] px-2 py-0.5 rounded-full font-medium">
+                      {CATEGORY_LABELS[cat] || cat}
+                    </span>
+                  ))}
+                  {arxivMeta.published && (
+                    <span className="text-xs bg-white/10 text-white/40 px-2 py-0.5 rounded-full">
+                      {arxivMeta.published}
+                    </span>
+                  )}
+                </div>
+                <button onClick={() => setShowArxivExpanded(false)} className="text-white/40 hover:text-white shrink-0">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <h2 className="text-lg font-bold text-white leading-snug">{arxivMeta.title}</h2>
+              <p className="text-sm text-white/50">{arxivMeta.authors}</p>
+              <p className="text-sm text-white/70 leading-relaxed">{arxivMeta.abstract}</p>
+            </motion.div>
+          </motion.div>
+        )}
+
         {showFullscreenThinking && thinking && (
           <motion.div
             initial={{ opacity: 0 }}

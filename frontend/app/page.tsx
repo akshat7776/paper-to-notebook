@@ -677,9 +677,6 @@ export default function LandingPage() {
               © 2024 Paper2Notebook AI. All rights reserved.
             </div>
           </div>
-          <div className="text-white/60 text-sm text-center mb-3">
-            Powered by Gemini 2.5 Pro · Real PyTorch implementations · Bring your own API key
-          </div>
           <div className="text-white/60 text-sm text-center">
             For any queries, mail us at: <a href="mailto:raj.dandekar8@gmail.com" className="text-[#8ad4ff] hover:underline">raj.dandekar8@gmail.com</a>
           </div>
