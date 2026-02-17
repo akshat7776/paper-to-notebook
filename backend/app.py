@@ -107,7 +107,9 @@ Return a JSON object with EXACTLY these fields:
     "name": "Dataset name if mentioned",
     "description": "Brief description",
     "preprocessing": "Any special preprocessing steps"
-  }
+  },
+  "research_field": "Primary research field in 2-4 words (e.g., 'Natural Language Processing', 'Computer Vision', 'Reinforcement Learning', 'Graph Neural Networks')",
+  "key_contributions": ["Contribution in 4-7 words", "Contribution in 4-7 words", "Contribution in 4-7 words"]
 }
 
 Be exhaustive. Extract every algorithmic detail, equation, and architectural choice.
@@ -458,15 +460,30 @@ def run_pipeline(
     analysis = parse_llm_json(analysis_raw, "paper_analysis", model, api_key=api_key)
     title = analysis.get("title", "Unknown Paper")
     num_algos = len(analysis.get("algorithms", []))
+    # Clean up metrics: strip formula parts (anything after = or ()
+    import re as _re
+    raw_metrics = analysis.get("evaluation_metrics", [])
+    def _clean_metric(m: str) -> str:
+        m = _re.split(r'\s*[=(]', m)[0].strip().rstrip(',')
+        return m
+    clean_metrics = [_clean_metric(m) for m in raw_metrics[:4] if m and _clean_metric(m)]
+
     _notify(1, "Analyzing paper", f"Found: {title}", {
         "type": "analysis",
         "title": title,
         "algorithms": num_algos,
+        "algorithm_names": [a.get("name", "") for a in analysis.get("algorithms", [])[:4] if a.get("name")],
         "insight": analysis.get("key_insight", ""),
         "problem": analysis.get("problem_statement", ""),
         "abstract_summary": analysis.get("abstract_summary", ""),
         "model_type": analysis.get("model_architecture", {}).get("type", ""),
         "authors": analysis.get("authors", ""),
+        "research_field": analysis.get("research_field", ""),
+        "key_contributions": analysis.get("key_contributions", [])[:3],
+        "metrics": clean_metrics,
+        "dataset_name": analysis.get("dataset", {}).get("name", ""),
+        "key_layers": analysis.get("model_architecture", {}).get("key_layers", [])[:4],
+        "baseline_names": [b.get("name", "") for b in analysis.get("baselines", [])[:3] if b.get("name")],
     })
 
     # Step 2: Design Plan

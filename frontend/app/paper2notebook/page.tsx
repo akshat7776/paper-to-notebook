@@ -16,7 +16,8 @@ import {
   Code2,
   Zap,
   X,
-  Maximize2
+  Maximize2,
+  ChevronDown
 } from 'lucide-react'
 import { twMerge } from 'tailwind-merge'
 import clsx from 'clsx'
@@ -24,6 +25,32 @@ import clsx from 'clsx'
 // Helper for class merging
 function cn(...inputs: (string | undefined | null | false)[]) {
   return twMerge(clsx(inputs))
+}
+
+// Tag colors by category
+const TAG_STYLES = {
+  violet:  'bg-violet-500/15 text-violet-300 border border-violet-500/25',
+  pink:    'bg-pink-500/15 text-pink-300 border border-pink-500/25',
+  sky:     'bg-[#8ad4ff]/15 text-[#8ad4ff] border border-[#8ad4ff]/30',
+  emerald: 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/25',
+  amber:   'bg-amber-500/15 text-amber-300 border border-amber-500/25',
+  teal:    'bg-teal-500/15 text-teal-300 border border-teal-500/25',
+  rose:    'bg-rose-500/15 text-rose-300 border border-rose-500/25',
+} as const
+
+function TagRow({ label, tags, color }: { label: string; tags: string[]; color: keyof typeof TAG_STYLES }) {
+  const filtered = tags.filter(Boolean)
+  if (!filtered.length) return null
+  return (
+    <div className="flex items-start gap-2">
+      <span className="text-[10px] text-white/25 uppercase tracking-widest w-14 shrink-0 pt-0.5 font-medium">{label}</span>
+      <div className="flex flex-wrap gap-1">
+        {filtered.map((tag, i) => (
+          <span key={i} className={`text-[11px] px-2 py-0.5 rounded-full ${TAG_STYLES[color]}`}>{tag}</span>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 // Hero Component
@@ -63,7 +90,7 @@ export default function Home() {
   const [thinking, setThinking] = useState('')
   const [activities, setActivities] = useState<any[]>([])
   const [showDone, setShowDone] = useState(false)
-  const [showFullscreenThinking, setShowFullscreenThinking] = useState(false)
+  const [thinkingExpanded, setThinkingExpanded] = useState(false)
 
   // Paper info for engaging wait experience
 
@@ -328,6 +355,7 @@ export default function Home() {
         setDisplayedThinking('')
         pendingCharsRef.current = ''
         userScrolledUpRef.current = false
+        setThinkingExpanded(false)
       }
       return step
     })
@@ -687,44 +715,42 @@ export default function Home() {
                             animate={{ opacity: 1, y: 0 }}
                             className="bg-white/5 rounded-xl border border-white/10 overflow-hidden"
                           >
-                            <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10 bg-white/[0.03]">
-                              <span className="relative flex h-2 w-2">
+                            <button
+                              onClick={() => setThinkingExpanded(p => !p)}
+                              className="w-full flex items-center gap-2 px-4 py-3 bg-white/[0.03] hover:bg-white/[0.06] transition-colors"
+                            >
+                              <span className="relative flex h-2 w-2 shrink-0">
                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#8ad4ff] opacity-75" />
                                 <span className="relative inline-flex rounded-full h-2 w-2 bg-[#8ad4ff]" />
                               </span>
-                              <span className="text-xs font-semibold text-white/80">
-                                {currentStep === 1 ? "Gemini is reading your paper..." : "Gemini is designing the implementation..."}
-                              </span>
-                              <button
-                                onClick={() => setShowFullscreenThinking(true)}
-                                className="ml-auto text-xs text-white/40 hover:text-white/70 transition-colors"
+                              <span className="text-xs font-semibold text-white/80">Gemini is reading your paper...</span>
+                              <ChevronDown className={`ml-auto w-3.5 h-3.5 text-white/40 transition-transform duration-200 ${thinkingExpanded ? 'rotate-180' : ''}`} />
+                            </button>
+                            {thinkingExpanded && (
+                              <div
+                                ref={thinkingScrollRef}
+                                onScroll={handleThinkingScroll}
+                                className="text-xs text-white/60 leading-relaxed p-4 max-h-48 overflow-y-auto border-t border-white/10"
                               >
-                                Expand
-                              </button>
-                            </div>
-                            <div
-                              ref={thinkingScrollRef}
-                              onScroll={handleThinkingScroll}
-                              className="text-xs text-white/60 leading-relaxed p-4 max-h-48 overflow-y-auto"
-                            >
-                              <ReactMarkdown
-                                components={{
-                                  p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-                                  strong: ({ children }) => <strong className="text-white/90 font-semibold">{children}</strong>,
-                                  em: ({ children }) => <em className="text-[#ffa8ff]/80">{children}</em>,
-                                  h1: ({ children }) => <h1 className="text-sm font-bold text-white/90 mb-1">{children}</h1>,
-                                  h2: ({ children }) => <h2 className="text-xs font-bold text-white/80 mb-1">{children}</h2>,
-                                  h3: ({ children }) => <h3 className="text-xs font-semibold text-white/70 mb-1">{children}</h3>,
-                                  ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-0.5">{children}</ul>,
-                                  ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-0.5">{children}</ol>,
-                                  li: ({ children }) => <li className="text-white/60">{children}</li>,
-                                  code: ({ children }) => <code className="font-mono bg-white/10 px-1 rounded text-[#8ad4ff]">{children}</code>,
-                                }}
-                              >
-                                {displayedThinking}
-                              </ReactMarkdown>
-                              <span className="inline-block w-1.5 h-3 bg-[#8ad4ff]/70 animate-pulse ml-0.5 align-middle" />
-                            </div>
+                                <ReactMarkdown
+                                  components={{
+                                    p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                                    strong: ({ children }) => <strong className="text-white/90 font-semibold">{children}</strong>,
+                                    em: ({ children }) => <em className="text-[#ffa8ff]/80">{children}</em>,
+                                    h1: ({ children }) => <h1 className="text-sm font-bold text-white/90 mb-1">{children}</h1>,
+                                    h2: ({ children }) => <h2 className="text-xs font-bold text-white/80 mb-1">{children}</h2>,
+                                    h3: ({ children }) => <h3 className="text-xs font-semibold text-white/70 mb-1">{children}</h3>,
+                                    ul: ({ children }) => <ul className="list-disc list-inside mb-2 space-y-0.5">{children}</ul>,
+                                    ol: ({ children }) => <ol className="list-decimal list-inside mb-2 space-y-0.5">{children}</ol>,
+                                    li: ({ children }) => <li className="text-white/60">{children}</li>,
+                                    code: ({ children }) => <code className="font-mono bg-white/10 px-1 rounded text-[#8ad4ff]">{children}</code>,
+                                  }}
+                                >
+                                  {displayedThinking}
+                                </ReactMarkdown>
+                                <span className="inline-block w-1.5 h-3 bg-[#8ad4ff]/70 animate-pulse ml-0.5 align-middle" />
+                              </div>
+                            )}
                           </motion.div>
                         )}
 
@@ -851,20 +877,26 @@ export default function Home() {
                                     {activity.content.insight && (
                                       <p className="text-xs text-[#8ad4ff]/70 italic">"{activity.content.insight}"</p>
                                     )}
-                                    <div className="flex flex-wrap gap-1.5 pt-1">
-                                      {activity.content.model_type && (
-                                        <span className="text-xs bg-[#8ad4ff]/10 text-[#8ad4ff] px-2 py-0.5 rounded-full">{activity.content.model_type}</span>
-                                      )}
-                                      {activity.content.algorithms > 0 && (
-                                        <span className="text-xs bg-white/10 text-white/50 px-2 py-0.5 rounded-full">{activity.content.algorithms} algorithm{activity.content.algorithms > 1 ? 's' : ''}</span>
-                                      )}
-                                    </div>
+                                    {/* Extracted tag rows */}
+                                    {(activity.content.research_field || activity.content.key_contributions?.length || activity.content.algorithm_names?.length || activity.content.metrics?.length || activity.content.dataset_name || activity.content.key_layers?.length || activity.content.baseline_names?.length) && (
+                                      <div className="mt-3 pt-3 border-t border-white/5 space-y-1.5">
+                                        <TagRow label="Field"     tags={activity.content.research_field ? [activity.content.research_field] : []} color="violet" />
+                                        <TagRow label="Goals"     tags={activity.content.key_contributions || []} color="pink" />
+                                        <TagRow label="Methods"   tags={activity.content.algorithm_names || []} color="sky" />
+                                        <TagRow label="Layers"    tags={activity.content.key_layers || []} color="teal" />
+                                        <TagRow label="Baselines" tags={activity.content.baseline_names || []} color="rose" />
+                                        <TagRow label="Metrics"   tags={activity.content.metrics || []} color="emerald" />
+                                        <TagRow label="Data"      tags={activity.content.dataset_name ? [activity.content.dataset_name] : []} color="amber" />
+                                      </div>
+                                    )}
                                   </div>
                                 )}
                                 {activity.type === 'design' && (
-                                  <div className="flex gap-2 flex-wrap">
-                                    <span className="text-xs bg-white/10 px-2 py-1 rounded">{activity.content.model_type}</span>
-                                    <span className="text-xs bg-white/10 px-2 py-1 rounded">dim={activity.content.embed_dim}</span>
+                                  <div className="mt-2 pt-2 border-t border-white/5 space-y-1.5">
+                                    <TagRow label="Arch"   tags={activity.content.model_type ? [activity.content.model_type] : []} color="sky" />
+                                    <TagRow label="Dim"    tags={activity.content.embed_dim ? [`dim=${activity.content.embed_dim}`] : []} color="teal" />
+                                    <TagRow label="Layers" tags={activity.content.num_layers ? [`${activity.content.num_layers} layers`] : []} color="violet" />
+                                    <TagRow label="Heads"  tags={activity.content.num_heads ? [`${activity.content.num_heads} heads`] : []} color="pink" />
                                   </div>
                                 )}
                               </motion.div>
@@ -879,23 +911,22 @@ export default function Home() {
                             animate={{ opacity: 1, y: 0 }}
                             className="bg-white/5 rounded-xl border border-white/10 overflow-hidden"
                           >
-                            <div className="flex items-center gap-2 px-4 py-3 border-b border-white/10 bg-white/[0.03]">
-                              <span className="relative flex h-2 w-2">
+                            <button
+                              onClick={() => setThinkingExpanded(p => !p)}
+                              className="w-full flex items-center gap-2 px-4 py-3 bg-white/[0.03] hover:bg-white/[0.06] transition-colors"
+                            >
+                              <span className="relative flex h-2 w-2 shrink-0">
                                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#8ad4ff] opacity-75" />
                                 <span className="relative inline-flex rounded-full h-2 w-2 bg-[#8ad4ff]" />
                               </span>
                               <span className="text-xs font-semibold text-white/80">Gemini is designing the implementation...</span>
-                              <button
-                                onClick={() => setShowFullscreenThinking(true)}
-                                className="ml-auto text-xs text-white/40 hover:text-white/70 transition-colors"
-                              >
-                                Expand
-                              </button>
-                            </div>
+                              <ChevronDown className={`ml-auto w-3.5 h-3.5 text-white/40 transition-transform duration-200 ${thinkingExpanded ? 'rotate-180' : ''}`} />
+                            </button>
+                            {thinkingExpanded && (
                             <div
                               ref={thinkingScrollRef}
                               onScroll={handleThinkingScroll}
-                              className="text-xs text-white/60 leading-relaxed p-4 max-h-48 overflow-y-auto"
+                              className="text-xs text-white/60 leading-relaxed p-4 max-h-48 overflow-y-auto border-t border-white/10"
                             >
                               <ReactMarkdown
                                 components={{
@@ -915,6 +946,7 @@ export default function Home() {
                               </ReactMarkdown>
                               <span className="inline-block w-1.5 h-3 bg-[#8ad4ff]/70 animate-pulse ml-0.5 align-middle" />
                             </div>
+                            )}
                           </motion.div>
                         )}
                       </div>
@@ -1057,33 +1089,6 @@ export default function Home() {
           </motion.div>
         )}
 
-        {showFullscreenThinking && thinking && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
-            onClick={() => setShowFullscreenThinking(false)}
-          >
-            <div className="bg-[#0a0a0a] border border-white/20 rounded-2xl p-6 max-w-4xl w-full max-h-[80vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                  <Brain className="w-5 h-5 text-[#8ad4ff]" />
-                  Model Thinking Process
-                </h3>
-                <button
-                  onClick={() => setShowFullscreenThinking(false)}
-                  className="p-2 hover:bg-white/10 rounded-lg transition-colors"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-              <div className="font-mono text-sm text-white/80 whitespace-pre-wrap">
-                {thinking}
-              </div>
-            </div>
-          </motion.div>
-        )}
       </AnimatePresence>
     </div>
   )
