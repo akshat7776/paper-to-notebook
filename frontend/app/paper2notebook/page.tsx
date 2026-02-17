@@ -17,7 +17,9 @@ import {
   Zap,
   X,
   Maximize2,
-  ChevronDown
+  ChevronDown,
+  Star,
+  ArrowUpRight,
 } from 'lucide-react'
 import { twMerge } from 'tailwind-merge'
 import clsx from 'clsx'
@@ -52,6 +54,187 @@ function TagRow({ label, tags, color }: { label: string; tags: string[]; color: 
     </div>
   )
 }
+
+// ─── Trending Papers ──────────────────────────────────────────────────────────
+
+interface TrendingPaper {
+  id: string
+  title: string
+  abstract: string
+  authors: string
+  publishedAt: string
+  upvotes: number
+  githubUrl: string
+  githubStars: number
+  keywords: string[]
+  arxivUrl: string
+  hfUrl: string
+  thumbnail: string
+}
+
+function getTaskStyle(task: string): string {
+  const t = task.toLowerCase()
+  if (t.includes('vision') || t.includes('image') || t.includes('object') || t.includes('segmentation') || t.includes('detection'))
+    return 'bg-indigo-500/15 text-indigo-300 border-indigo-500/25'
+  if (t.includes('language') || t.includes('nlp') || t.includes('text') || t.includes('translation') || t.includes('question') || t.includes('summar'))
+    return 'bg-violet-500/15 text-violet-300 border-violet-500/25'
+  if (t.includes('reinforcement') || t.includes('robot') || t.includes('control') || t.includes('planning'))
+    return 'bg-amber-500/15 text-amber-300 border-amber-500/25'
+  if (t.includes('generat') || t.includes('diffusion') || t.includes('gan') || t.includes('synthesis'))
+    return 'bg-pink-500/15 text-pink-300 border-pink-500/25'
+  if (t.includes('graph') || t.includes('node') || t.includes('link'))
+    return 'bg-teal-500/15 text-teal-300 border-teal-500/25'
+  if (t.includes('audio') || t.includes('speech') || t.includes('voice') || t.includes('sound'))
+    return 'bg-orange-500/15 text-orange-300 border-orange-500/25'
+  if (t.includes('classif') || t.includes('recogni'))
+    return 'bg-emerald-500/15 text-emerald-300 border-emerald-500/25'
+  if (t.includes('asr') || t.includes('tts') || t.includes('llm') || t.includes('vlm') || t.includes('mllm'))
+    return 'bg-orange-500/15 text-orange-300 border-orange-500/25'
+  if (t.includes('efficient') || t.includes('compress') || t.includes('quant') || t.includes('prun') || t.includes('distill'))
+    return 'bg-lime-500/15 text-lime-300 border-lime-500/25'
+  if (t.includes('multimodal') || t.includes('multi-modal') || t.includes('cross-modal'))
+    return 'bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/25'
+  // Default: rotate through a set of vibrant colors based on text hash
+  const colors = [
+    'bg-violet-500/15 text-violet-300 border-violet-500/25',
+    'bg-pink-500/15 text-pink-300 border-pink-500/25',
+    'bg-amber-500/15 text-amber-300 border-amber-500/25',
+    'bg-emerald-500/15 text-emerald-300 border-emerald-500/25',
+    'bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-500/25',
+    'bg-lime-500/15 text-lime-300 border-lime-500/25',
+  ]
+  const hash = task.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0)
+  return colors[hash % colors.length]
+}
+
+function PaperCardSkeleton() {
+  return (
+    <div className="bg-white/5 border border-white/10 rounded-2xl overflow-hidden space-y-3 animate-pulse">
+      <div className="w-full aspect-[2/1] bg-white/10 rounded-t-2xl" />
+      <div className="p-5 space-y-3">
+      <div className="flex gap-2 items-center">
+        <div className="h-5 w-10 bg-white/10 rounded" />
+        <div className="h-5 w-16 bg-white/10 rounded-full" />
+        <div className="h-5 w-14 bg-white/10 rounded-full" />
+        <div className="h-4 w-10 bg-white/5 rounded ml-auto" />
+      </div>
+      <div className="h-4 bg-white/10 rounded w-5/6" />
+      <div className="h-4 bg-white/10 rounded w-3/5" />
+      <div className="h-3 bg-white/5 rounded w-2/5" />
+      <div className="space-y-1.5 pt-1">
+        <div className="h-3 bg-white/5 rounded w-full" />
+        <div className="h-3 bg-white/5 rounded w-5/6" />
+        <div className="h-3 bg-white/5 rounded w-4/6" />
+      </div>
+      <div className="flex gap-2 pt-2 border-t border-white/5">
+        <div className="h-7 w-20 bg-white/5 rounded-lg" />
+        <div className="h-7 w-36 bg-white/5 rounded-lg ml-auto" />
+      </div>
+      </div>{/* end p-5 body */}
+    </div>
+  )
+}
+
+function PaperCard({ paper, onConvert }: { paper: TrendingPaper; onConvert: (url: string) => void }) {
+  return (
+    <motion.div
+      whileHover={{ y: -5, borderColor: 'rgba(255,255,255,0.22)' }}
+      transition={{ type: 'spring', stiffness: 320, damping: 22 }}
+      className="group relative bg-white/[0.04] border border-white/10 rounded-2xl flex flex-col overflow-hidden"
+    >
+      {/* Hover glow */}
+      <div className="absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
+        style={{ boxShadow: '0 8px 40px -8px rgba(138,212,255,0.18)' }} />
+
+      {/* Thumbnail */}
+      {paper.thumbnail && (
+        <div className="relative w-full aspect-[2/1] overflow-hidden rounded-t-2xl bg-white/5 shrink-0">
+          <img
+            src={paper.thumbnail}
+            alt=""
+            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+            loading="lazy"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#050505]/80 via-transparent to-transparent" />
+        </div>
+      )}
+
+      {/* Card body */}
+      <div className="flex flex-col gap-4 p-7 flex-1">
+
+      {/* Top row: date + keywords + github stars */}
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {paper.publishedAt && (
+          <span className="text-xs font-mono bg-[#ffd78a]/10 text-[#ffd78a]/60 px-2.5 py-1 rounded shrink-0">
+            {paper.publishedAt}
+          </span>
+        )}
+        {paper.keywords.slice(0, 2).map(kw => (
+          <span key={kw} className={`text-xs px-2.5 py-1 rounded-full border ${getTaskStyle(kw)}`}>
+            {kw.length > 22 ? kw.slice(0, 21) + '…' : kw}
+          </span>
+        ))}
+        {paper.githubUrl ? (
+          <a
+            href={paper.githubUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={e => e.stopPropagation()}
+            className="ml-auto flex items-center gap-1 text-xs text-white/50 hover:text-white/80 transition-colors shrink-0"
+            title="GitHub repository"
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z" />
+            </svg>
+            {paper.githubStars > 0 ? (
+              <span>{paper.githubStars >= 1000 ? (paper.githubStars / 1000).toFixed(1) + 'k' : paper.githubStars}</span>
+            ) : null}
+          </a>
+        ) : paper.upvotes > 0 ? (
+          <div className="ml-auto flex items-center gap-1 text-xs text-[#ffd78a]/70 shrink-0" title="Upvotes on HuggingFace">
+            <Star className="w-3.5 h-3.5 fill-[#ffd78a]/40" />
+            {paper.upvotes}
+          </div>
+        ) : null}
+      </div>
+
+      {/* Title */}
+      <h3 className="text-base font-bold text-white leading-snug group-hover:text-[#8ad4ff] transition-colors line-clamp-2">
+        {paper.title}
+      </h3>
+
+      {/* Authors */}
+      <p className="text-xs text-white/35 font-medium -mt-1">{paper.authors}</p>
+
+      {/* Abstract */}
+      <p className="text-sm text-white/55 leading-relaxed line-clamp-3 flex-1">{paper.abstract}</p>
+
+      {/* Bottom actions */}
+      <div className="flex items-center gap-2 pt-3 border-t border-white/5">
+        <a
+          href={paper.hfUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={e => e.stopPropagation()}
+          className="flex items-center gap-1.5 text-xs text-white/40 hover:text-white/70 transition-colors px-3 py-2 rounded-lg bg-white/5 hover:bg-white/10"
+        >
+          <ArrowUpRight className="w-3.5 h-3.5" />
+          HF Paper
+        </a>
+        <button
+          onClick={() => onConvert(paper.arxivUrl)}
+          className="ml-auto flex items-center gap-2 text-sm font-semibold bg-[#8ad4ff]/15 hover:bg-[#8ad4ff]/25 text-[#8ad4ff] border border-[#8ad4ff]/30 px-4 py-2 rounded-lg transition-colors"
+        >
+          Convert to Notebook
+          <img src="/paper2codelogo.png" className="w-4 h-4 object-contain" alt="" />
+        </button>
+      </div>
+      </div>{/* end card body */}
+    </motion.div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 // Hero Component
 const Hero = () => (
@@ -91,6 +274,12 @@ export default function Home() {
   const [activities, setActivities] = useState<any[]>([])
   const [showDone, setShowDone] = useState(false)
   const [thinkingExpanded, setThinkingExpanded] = useState(false)
+
+  // Trending papers
+  const [trendingPapers, setTrendingPapers] = useState<TrendingPaper[]>([])
+  const [trendingLoading, setTrendingLoading] = useState(true)
+  const [trendingPeriod, setTrendingPeriod] = useState<'day' | 'week' | 'month'>('day')
+  const arxivInputRef = useRef<HTMLInputElement>(null)
 
   // Paper info for engaging wait experience
 
@@ -166,6 +355,23 @@ export default function Home() {
     if (!thinkingScrollRef.current) return
     const { scrollTop, scrollHeight, clientHeight } = thinkingScrollRef.current
     userScrolledUpRef.current = scrollHeight - scrollTop - clientHeight > 60
+  }, [])
+
+  // Fetch trending papers when period changes
+  useEffect(() => {
+    setTrendingLoading(true)
+    setTrendingPapers([])
+    fetch(`/api/trending-papers?period=${trendingPeriod}`)
+      .then(r => r.json())
+      .then(data => { setTrendingPapers(data.papers || []); setTrendingLoading(false) })
+      .catch(() => setTrendingLoading(false))
+  }, [trendingPeriod])
+
+  const handleConvertPaper = useCallback((url: string) => {
+    setArxivUrl(url)
+    setSelectedFile(null)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    setTimeout(() => arxivInputRef.current?.focus(), 600)
   }, [])
 
   // Load API key from localStorage and check for pending file/URL
@@ -542,6 +748,7 @@ export default function Home() {
                     setSelectedFile(null) // Clear file if URL is entered
                   }
                 }}
+                ref={arxivInputRef}
                 placeholder="https://arxiv.org/pdf/..."
                 className="w-full bg-white/5 border border-white/10 rounded-lg px-4 py-3 text-sm focus:border-white/30 focus:outline-none transition-colors"
               />
@@ -1041,7 +1248,54 @@ export default function Home() {
         >
           Powered by Gemini 2.0 Flash · Real PyTorch implementations · Bring your own API key
         </motion.div>
+
       </div>
+
+      {/* Trending Papers — full width */}
+      <motion.section
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.8 }}
+          className="mt-14 px-8 pb-16 relative z-10"
+        >
+          {/* Header + period tabs */}
+          <div className="flex items-center gap-3 mb-6 flex-wrap">
+            <h2 className="text-lg font-bold text-white tracking-tight">Trending Papers</h2>
+            <span className="text-[11px] bg-[#8ad4ff]/10 text-[#8ad4ff] border border-[#8ad4ff]/20 px-2.5 py-0.5 rounded-full font-medium">
+              HuggingFace
+            </span>
+            {/* Period tabs */}
+            <div className="ml-auto flex items-center gap-1 bg-white/5 rounded-xl p-1">
+              {(['day', 'week', 'month'] as const).map((p) => (
+                <button
+                  key={p}
+                  onClick={() => setTrendingPeriod(p)}
+                  className={`text-xs font-medium px-3.5 py-1.5 rounded-lg transition-all ${
+                    trendingPeriod === p
+                      ? 'bg-[#8ad4ff]/20 text-[#8ad4ff] border border-[#8ad4ff]/30'
+                      : 'text-white/40 hover:text-white/70'
+                  }`}
+                >
+                  {p === 'day' ? 'Daily' : p === 'week' ? 'Weekly' : 'Monthly'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {trendingLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {Array.from({ length: 8 }).map((_, i) => <PaperCardSkeleton key={i} />)}
+            </div>
+          ) : trendingPapers.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {trendingPapers.map(paper => (
+                <PaperCard key={paper.id} paper={paper} onConvert={handleConvertPaper} />
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-white/30 text-center py-10">No papers found for this period.</p>
+          )}
+      </motion.section>
 
       {/* Fullscreen Thinking Modal */}
       <AnimatePresence>
