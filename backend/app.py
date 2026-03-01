@@ -574,7 +574,9 @@ def run_pipeline(
 
     # Build and return validated notebook
     if not isinstance(validated_cells, list):
-        raise ValueError("Expected validated_cells to be a list, got dict")
+        raise ValueError(
+            f"Expected validated_cells to be a list, got {type(validated_cells).__name__}"
+        )
     nb = build_notebook(validated_cells)
     return nb_to_bytes(nb)
 
