@@ -459,7 +459,7 @@ def run_pipeline(
     )
     analysis = parse_llm_json(analysis_raw, "paper_analysis", model, api_key=api_key)
     if not isinstance(analysis, dict):
-        raise ValueError("Expected analysis to be a dict, got list")
+        raise ValueError(f"Expected analysis to be a dict, got {type(analysis).__name__}")
     title = analysis.get("title", "Unknown Paper")
     num_algos = len(analysis.get("algorithms", []))
     # Clean up metrics: strip formula parts (anything after = or ()
