@@ -307,7 +307,13 @@ def call_gemini(
         response = client.models.generate_content(
             model=model, contents=user_content, config=config
         )
-        return response.text or ""
+        text = getattr(response, "text", None)
+        if text is None:
+            raise RuntimeError(
+                "Gemini response is missing 'text'. "
+                "This likely indicates an unexpected API or SDK behavior."
+            )
+        return text
 
 
 def call_gemini_with_retry(
