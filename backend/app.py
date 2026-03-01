@@ -258,7 +258,7 @@ Return ONLY the JSON array, no extra text.
 # LLM UTILITIES
 # ============================================================================
 
-def _get_api_key(api_key: str | None = None) -> str:
+def _get_api_key(api_key: str | None = None) -> str | None:
     """Get API key from parameter, environment, or fallback."""
     return api_key or os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY") 
 
@@ -307,7 +307,7 @@ def call_gemini(
         response = client.models.generate_content(
             model=model, contents=user_content, config=config
         )
-        return response.text
+        return response.text or ""
 
 
 def call_gemini_with_retry(
@@ -458,6 +458,8 @@ def run_pipeline(
         on_thinking=on_thinking,
     )
     analysis = parse_llm_json(analysis_raw, "paper_analysis", model, api_key=api_key)
+    if not isinstance(analysis, dict):
+        raise ValueError("Expected analysis to be a dict, got list")
     title = analysis.get("title", "Unknown Paper")
     num_algos = len(analysis.get("algorithms", []))
     # Clean up metrics: strip formula parts (anything after = or ()
@@ -500,6 +502,8 @@ def run_pipeline(
         on_thinking=on_thinking,
     )
     design = parse_llm_json(design_raw, "toy_design", model, api_key=api_key)
+    if not isinstance(design, dict):
+        raise ValueError("Expected design to be a dict, got list")
     arch = design.get("model_architecture", {})
     _notify(2, "Designing implementation", "Architecture designed", {
         "type": "design",
@@ -525,6 +529,8 @@ def run_pipeline(
         on_thinking=on_thinking,
     )
     cells = parse_llm_json(cells_raw, "generate_cells", model, api_key=api_key)
+    if not isinstance(cells, list):
+        raise ValueError("Expected cells to be a list, got dict")
     num_cells = len(cells)
     code_cells = sum(1 for c in cells if c.get("cell_type") == "code")
     previews = []
@@ -561,6 +567,8 @@ def run_pipeline(
     _notify(4, "Validating code", "Validation complete")
 
     # Build and return validated notebook
+    if not isinstance(validated_cells, list):
+        raise ValueError("Expected validated_cells to be a list, got dict")
     nb = build_notebook(validated_cells)
     return nb_to_bytes(nb)
 
